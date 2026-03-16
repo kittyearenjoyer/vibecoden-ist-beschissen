@@ -3,4 +3,4 @@ ultralytics
 opencv-python-headless
 pillow
 numpy
-torch
+git+https://github.com/openai/CLIP.git
