@@ -1,46 +1,57 @@
 import streamlit as st
-import cv2
-import numpy as np
-from ultralytics import YOLO
+from ultralytics import YOLOWorld
 from PIL import Image
+import numpy as np
 
-st.title("AI Security Camera")
+st.set_page_config(page_title="KI Objekterkennung (YOLO‑World)", layout="centered")
+
+st.title("🧠 YOLO‑World Objekterkennung")
+st.write("Bild hochladen und Objekte via Text‑Prompt erkennen.")
 
 # Modell laden
-model = YOLO("yolov8n.pt")
+@st.cache_resource
+def load_yoloworld():
+    return YOLOWorld("yolov8s-world.pt")
 
-uploaded_file = st.file_uploader("Upload image", type=["jpg","png","jpeg"])
+model = load_yoloworld()
 
-if uploaded_file:
+# Eingabefeld für Objektnamen (Deutsch/Englisch möglich)
+classes_input = st.text_input(
+    "Welche Objekte soll die KI erkennen? (Komma getrennt)",
+    "hat, key, phone, wallet, backpack"
+)
+
+prompt_list = [c.strip() for c in classes_input.split(",") if c.strip()]
+
+uploaded_file = st.file_uploader(
+    "Bild hochladen",
+    type=["jpg","jpeg","png"]
+)
+
+if uploaded_file and prompt_list:
 
     image = Image.open(uploaded_file)
-    frame = np.array(image)
+    st.image(image, caption="Hochgeladenes Bild", use_column_width=True)
 
-    results = model(frame)
+    st.write("🔍 KI analysiert mit YOLO‑World…")
 
-    person_detected = False
+    # Bild für Berechnung in numpy
+    img_array = np.array(image)
 
-    for r in results:
-        boxes = r.boxes
+    # Prompt setzen (Text Klassen)
+    model.set_classes(prompt_list)
 
-        for box in boxes:
+    # Vorhersage
+    results = model.predict(img_array)
 
-            cls = int(box.cls[0])
+    # Annotiertes Bild anzeigen
+    annotated = results[0].plot()
+    st.image(annotated, caption="Erkannte Objekte", use_column_width=True)
 
-            if cls == 0:
-                person_detected = True
-
-            x1,y1,x2,y2 = map(int,box.xyxy[0])
-
-            cv2.rectangle(
-                frame,
-                (x1,y1),
-                (x2,y2),
-                (0,255,0),
-                2
-            )
-
-    if person_detected:
-        st.warning("PERSON DETECTED")
-
-    st.image(frame)
+    # Anzeige der gefundenen Objekte
+    labels = results[0].boxes.cls
+    detected = [prompt_list[int(idx)] for idx in labels] if len(labels)>0 else []
+    if detected:
+        st.success("Gefunden: " + ", ".join(set(detected)))
+    else:
+        st.warning("Keine der eingegebenen Objekte gefunden.")
